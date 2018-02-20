@@ -1,0 +1,73 @@
+package bryan.paintstory;
+
+import android.content.Intent;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.util.DisplayMetrics;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+
+public class MainActivity extends AppCompatActivity {
+
+    private PaintView mPaintView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        mPaintView = (PaintView) findViewById(R.id.paintView);
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        mPaintView.init(metrics);
+
+    }
+
+    /**
+     * Inflates the new menu with items
+     * @param menu the menu to inflate
+     * @return true of succeeds, otherwise false
+     */
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater menuInflater = getMenuInflater();
+        menuInflater.inflate(R.menu.main, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    /**
+     * Listens for menu item clicks and calls necessary functions
+     * @param item the clicked item
+     * @return true if succeeds, otherwise false
+     */
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch(item.getItemId()){
+            case R.id.normal:
+                return true;
+            case R.id.emboss:
+                mPaintView.emboss();
+                return true;
+            case R.id.blur:
+                mPaintView.blur();
+                return true;
+            case R.id.clear:
+                mPaintView.clear();
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    /**
+     * Launches story actdivity based on click
+     * @param v
+     */
+    public void launchStory(View v){
+        Intent intent = new Intent(v.getContext(), LiveStory.class);
+        v.getContext().startActivity(intent);
+    }
+
+
+}

@@ -1,0 +1,73 @@
+//package bryan.paintstory;
+//
+//import android.content.Context;
+//import android.support.v7.widget.RecyclerView;
+//import android.view.LayoutInflater;
+//import android.view.View;
+//import android.view.ViewGroup;
+//import android.widget.ImageView;
+//import android.widget.TextView;
+//
+//import com.google.firebase.database.DataSnapshot;
+//import com.google.firebase.database.DatabaseError;
+//import com.google.firebase.database.DatabaseReference;
+//import com.google.firebase.database.FirebaseDatabase;
+//import com.google.firebase.database.ValueEventListener;
+//import com.google.firebase.storage.FirebaseStorage;
+//import com.google.firebase.storage.StorageReference;
+//
+///**
+// * Created by byamba on 4/21/17.
+// */
+//
+//public class StoryAdapter extends RecyclerView.Adapter<StoryAdapter.StoryAdapterViewHolder> {
+//    FirebaseDatabase database = FirebaseDatabase.getInstance();
+//    DatabaseReference storyRef = database.getReference("stories");
+//
+//    @Override
+//    public StoryAdapterViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+//        Context context = parent.getContext();
+//        int layoutIdForListItem = R.layout.activity_live_story_item;
+//        LayoutInflater inflater = LayoutInflater.from(context);
+//        boolean shouldAttachToParentImmediately = false;
+//
+//        View view = inflater.inflate(layoutIdForListItem, parent, shouldAttachToParentImmediately);
+//        return new StoryAdapterViewHolder(view);
+//    }
+//
+//    @Override
+//    public void onBindViewHolder(StoryAdapterViewHolder holder, int position) {
+//        storyRef.addValueEventListener(new ValueEventListener() {
+//            @Override
+//            public void onDataChange(DataSnapshot dataSnapshot) {
+//
+//            }
+//
+//            @Override
+//            public void onCancelled(DatabaseError databaseError) {
+//
+//            }
+//        })
+//    }
+//
+//    @Override
+//    public int getItemCount() {
+//        return 0;
+//    }
+//
+//    public static class StoryAdapterViewHolder extends RecyclerView.ViewHolder {
+//
+//        public final TextView mPictureTitle;
+//        public final ImageView mStoryPicture;
+//        public View view;
+//
+//
+//        public StoryAdapterViewHolder(View itemView) {
+//            super(itemView);
+//            mPictureTitle = (TextView) itemView.findViewById(R.id.pictureTitle);
+//            mStoryPicture = (ImageView) itemView.findViewById(R.id.storyPicture);
+//            view = itemView;
+//        }
+//
+//    }
+//}

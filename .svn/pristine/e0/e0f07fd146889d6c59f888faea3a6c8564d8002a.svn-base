@@ -1,0 +1,53 @@
+package bryan.paintstory;
+
+import android.os.Bundle;
+import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
+import android.util.Log;
+import android.view.View;
+import android.widget.TextView;
+
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+public class TestActivity extends AppCompatActivity {
+
+    private String readValue;
+    private String writeValue;
+    private TextView mTestText;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_test);
+
+        mTestText = (TextView) findViewById(R.id.testText);
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference testRef = database.getReference("TestValue");
+
+        writeValue = "Coding is fun!";
+        testRef.setValue(writeValue);
+
+        testRef.addValueEventListener(new ValueEventListener() {
+
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                readValue = dataSnapshot.getValue(String.class);
+                mTestText.setText("Current value: " + readValue);
+
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                Log.d("READ", "Failed to read value");
+            }
+
+        });
+    }
+
+}

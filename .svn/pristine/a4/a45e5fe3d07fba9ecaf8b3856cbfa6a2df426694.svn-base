@@ -1,0 +1,63 @@
+package bryan.paintstory;
+
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import com.firebase.ui.database.FirebaseRecyclerAdapter;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.squareup.picasso.Picasso;
+
+public class LiveStory extends AppCompatActivity {
+
+    private RecyclerView mRecylerView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_live_story);
+
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference storyRef = database.getReference("stories");
+        DatabaseReference testRef = database.getReference("TestValue");
+        testRef.setValue("LOL");
+
+        //The FirebaseRecyclerAdapter that recycles through all queries in the database
+        final FirebaseRecyclerAdapter<StoryItem, StoryAdapterViewHolder> firebaseRecyclerAdapter =
+                new FirebaseRecyclerAdapter<StoryItem, StoryAdapterViewHolder>(StoryItem.class, R.layout.activity_live_story_item,
+                        StoryAdapterViewHolder.class, storyRef) {
+                    @Override
+                    protected void populateViewHolder(StoryAdapterViewHolder viewHolder, StoryItem model, int position) {
+                        viewHolder.mPictureTitle.setText(model.getTitle());
+                        Picasso.with(viewHolder.mStoryPicture.getContext())
+                                .load(model.getImageURL()).into(viewHolder.mStoryPicture);
+                    }
+                };
+        mRecylerView = (RecyclerView) findViewById(R.id.liveStoryRecyclerView);
+        mRecylerView.setHasFixedSize(true);
+        mRecylerView.setLayoutManager(new LinearLayoutManager(this));
+        mRecylerView.setAdapter(firebaseRecyclerAdapter);
+    }
+
+    public static class StoryAdapterViewHolder extends RecyclerView.ViewHolder {
+
+        public final TextView mPictureTitle;
+        public final ImageView mStoryPicture;
+        public View view;
+
+
+        public StoryAdapterViewHolder(View itemView) {
+            super(itemView);
+            mPictureTitle = (TextView) itemView.findViewById(R.id.pictureTitle);
+            mStoryPicture = (ImageView) itemView.findViewById(R.id.storyPicture);
+            view = itemView;
+        }
+
+    }
+
+}

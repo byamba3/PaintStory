@@ -1,0 +1,121 @@
+package bryan.paintstory;
+
+import android.os.Bundle;
+import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import com.firebase.ui.database.FirebaseRecyclerAdapter;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.squareup.picasso.Picasso;
+
+import java.util.Calendar;
+
+/**
+ * Created by byamba on 5/5/17.
+ */
+
+public class LiveStoryFragment extends Fragment {
+
+    private static final int SECOND_MILLIS = 1000;
+    private static final int MINUTE_MILLIS = 60 * SECOND_MILLIS;
+    private static final int HOUR_MILLIS = 60 * MINUTE_MILLIS;
+    private static final int DAY_MILLIS = 24 * HOUR_MILLIS;
+    private RecyclerView mRecylerView;
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View rootView = inflater.inflate(R.layout.activity_live_story, container, false);
+
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference storyRef = database.getReference("storiesWithDates");
+
+        //The FirebaseRecyclerAdapter that recycles through all queries in the database
+        final FirebaseRecyclerAdapter<StoryItem, StoryAdapterViewHolder> firebaseRecyclerAdapter =
+                new FirebaseRecyclerAdapter<StoryItem, StoryAdapterViewHolder>(StoryItem.class, R.layout.activity_live_story_item,
+                        StoryAdapterViewHolder.class, storyRef) {
+                    @Override
+                    protected void populateViewHolder(StoryAdapterViewHolder viewHolder, StoryItem model, int position) {
+                        String originalTitle = model.getTitle();
+                        viewHolder.mStoryTitle.setText(originalTitle);
+                        viewHolder.mStoryDate.setText(getTimeSince(model.getDate()));
+                        Picasso.with(viewHolder.mStoryPicture.getContext())
+                                .load(model.getImageURL()).into(viewHolder.mStoryPicture);
+                    }
+
+
+                };
+        mRecylerView = (RecyclerView) rootView.findViewById(R.id.liveStoryRecyclerView);
+        mRecylerView.setHasFixedSize(true);
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this.getActivity());
+        layoutManager.setReverseLayout(true);
+        layoutManager.setStackFromEnd(true);
+        mRecylerView.setLayoutManager(layoutManager);
+        mRecylerView.setAdapter(firebaseRecyclerAdapter);
+
+        return rootView;
+
+    }
+
+    public String getTimeSince(long time) {
+
+        if (time < 1000000000000L) {
+            // if timestamp given in seconds, convert to millis
+            time *= 1000;
+        }
+
+        Calendar currentDate = Calendar.getInstance();
+        long now = currentDate.getTimeInMillis();
+        if (time > now || time <= 0) {
+            return null;
+        }
+
+        // TODO: localize
+        final long diff = now - time;
+        if (diff < MINUTE_MILLIS) {
+            return "just now";
+        } else if (diff < 2 * MINUTE_MILLIS) {
+            return "a minute ago";
+        } else if (diff < 50 * MINUTE_MILLIS) {
+            return diff / MINUTE_MILLIS + " minutes ago";
+        } else if (diff < 90 * MINUTE_MILLIS) {
+            return "an hour ago";
+        } else if (diff < 24 * HOUR_MILLIS) {
+            return diff / HOUR_MILLIS + " hours ago";
+        } else if (diff < 48 * HOUR_MILLIS) {
+            return "yesterday";
+        } else {
+            return diff / DAY_MILLIS + " days ago";
+        }
+    }
+
+    /**
+     * The view holder for each story item
+     */
+    public static class StoryAdapterViewHolder extends RecyclerView.ViewHolder {
+
+        public final TextView mStoryTitle;
+        public final ImageView mStoryPicture;
+        public final TextView mStoryDate;
+        public View view;
+
+
+        public StoryAdapterViewHolder(View itemView) {
+            super(itemView);
+            mStoryTitle = (TextView) itemView.findViewById(R.id.pictureTitle);
+            mStoryDate = (TextView) itemView.findViewById(R.id.storyDate);
+            mStoryPicture = (ImageView) itemView.findViewById(R.id.storyPicture);
+            view = itemView;
+        }
+
+    }
+
+}

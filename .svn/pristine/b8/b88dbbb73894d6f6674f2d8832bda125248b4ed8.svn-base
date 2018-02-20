@@ -1,0 +1,305 @@
+package bryan.paintstory;
+
+import android.app.Dialog;
+import android.app.ProgressDialog;
+import android.content.DialogInterface;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Environment;
+import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.aurelhubert.ahbottomnavigation.AHBottomNavigation;
+import com.aurelhubert.ahbottomnavigation.AHBottomNavigationItem;
+import com.flask.colorpicker.ColorPickerView;
+import com.flask.colorpicker.OnColorSelectedListener;
+import com.flask.colorpicker.builder.ColorPickerClickListener;
+import com.flask.colorpicker.builder.ColorPickerDialogBuilder;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Calendar;
+
+public class MainActivity extends AppCompatActivity implements AHBottomNavigation.OnTabSelectedListener{
+
+    private PaintView mPaintView;
+    private TextView mTestText;
+    private StorageReference mStorage;
+    private ProgressDialog mProgress;
+    private FirebaseDatabase mDatabase;
+    private DatabaseReference storyReference;
+    private Calendar currentTime;
+    private RadioGroup mRadioGroupBrushType;
+    private SeekBar mSeekBarBrushSize;
+
+    private int mSelectedBrushType = -1;
+    AHBottomNavigation bottomNavigation;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+
+        mStorage = FirebaseStorage.getInstance().getReference();
+        mProgress = new ProgressDialog(this);
+
+        mDatabase = FirebaseDatabase.getInstance();
+        storyReference = mDatabase.getReference("storiesWithDates");
+
+        bottomNavigation= (AHBottomNavigation) findViewById(R.id.myBottomNavigation_ID);
+        bottomNavigation.setOnTabSelectedListener(this);
+        this.createNavItems();
+    }
+
+    /**
+     * Creates bottom navigation items
+     */
+    public void createNavItems(){
+        AHBottomNavigationItem StoryItem =new AHBottomNavigationItem("Story",R.drawable.ic_dashboard_black_24dp);
+        AHBottomNavigationItem PaintItem =new AHBottomNavigationItem("Home",R.drawable.ic_home_black_24dp);
+
+        //ADD THEM to bar
+        bottomNavigation.addItem(StoryItem);
+        bottomNavigation.addItem(PaintItem);
+
+        //set properties
+        bottomNavigation.setDefaultBackgroundColor(Color.parseColor("#FEFEFE"));
+
+        //set current item
+        bottomNavigation.setCurrentItem(0);
+    }
+
+    /**
+     * Saves image in local storage temporarily
+     */
+    public void saveImage() {
+        File folder = new File(Environment.getExternalStorageDirectory().toString());
+        boolean success = false;
+        if (!folder.exists()) {
+            success = folder.mkdirs();
+        }
+
+        System.out.println(success + "folder");
+
+        File file = new File(Environment.getExternalStorageDirectory().toString() + "/temp.png");
+
+        try {
+            success = file.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(success + "file");
+
+
+        FileOutputStream ostream = null;
+        try {
+            ostream = new FileOutputStream(file);
+            System.out.println(ostream);
+            View targetView = mPaintView;
+            Bitmap well = mPaintView.getBitmap();
+            Bitmap save = Bitmap.createBitmap(320, 480, Bitmap.Config.ARGB_8888);
+            Paint paint = new Paint();
+            paint.setColor(Color.WHITE);
+            Canvas now = new Canvas(save);
+            now.drawRect(new Rect(0, 0, 320, 480), paint);
+            now.drawBitmap(well, new Rect(0, 0, well.getWidth(), well.getHeight()), new Rect(0, 0, 320, 480), null);
+
+            if (save == null) {
+                System.out.println("NULL bitmap save\n");
+            }
+            save.compress(Bitmap.CompressFormat.PNG, 100, ostream);
+
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            Toast.makeText(getApplicationContext(), "Null error", Toast.LENGTH_SHORT).show();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            Toast.makeText(getApplicationContext(), "File error", Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(getApplicationContext(), "IO error", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void uploadImage() {
+        saveImage();
+
+        // Build a dialog from layout XML
+        final Dialog dialog = new Dialog(MainActivity.this);
+        dialog.setContentView(R.layout.dialog_upload);
+        dialog.setTitle("What is your title?");
+        final EditText uploadTitle = (EditText) dialog.findViewById(R.id.dialog_upload_editText);
+        final Button uploadButton = (Button) dialog.findViewById(R.id.dialog_upload_button);
+        uploadButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Grab the contents of the EditText.
+                final String postTitle = uploadTitle.getText().toString();
+
+                mProgress.setMessage("Uploading Paint ...");
+                mProgress.show();
+
+                Uri uri = Uri.fromFile(new File("/sdcard/temp.png"));
+                StorageReference filepath = mStorage.child("StoryPictures   ").child(postTitle);
+                filepath.putFile(uri).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        mProgress.dismiss();
+                        currentTime = Calendar.getInstance();
+                        @SuppressWarnings("VisibleForTests") String downloadURL = taskSnapshot.getDownloadUrl().toString();
+                        StoryItem newStoryUpload = new StoryItem(postTitle, downloadURL, currentTime.getTimeInMillis());
+                        storyReference.push().setValue(newStoryUpload);
+                        Toast.makeText(MainActivity.this, "Uploading finished!", Toast.LENGTH_LONG).show();
+                    }
+                }).addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        mProgress.dismiss();
+                        Toast.makeText(MainActivity.this, "Uploading could not complete!", Toast.LENGTH_LONG).show();
+                    }
+                });
+                dialog.dismiss();
+            }
+        });
+        dialog.show();
+
+    }
+
+    public void openBrushMenu() {
+
+        final Dialog dialog = new Dialog(MainActivity.this);
+        dialog.setContentView(R.layout.dialog_brush);
+        dialog.setTitle("Customize your brush");
+        //Changes brush size based on seek progress
+        mRadioGroupBrushType = (RadioGroup) dialog.findViewById(R.id.RadioGroupBrushType);
+        mSeekBarBrushSize = (SeekBar) dialog.findViewById(R.id.seek_brush_size);
+        mSeekBarBrushSize.setProgress(mPaintView.getStrokeWidth());
+        mSeekBarBrushSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            int progressNumber = 0;
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                progressNumber = progress;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                mPaintView.setStrokeWidth(progressNumber / 2);
+            }
+        });
+
+        final Button confirmButton = (Button) dialog.findViewById(R.id.button_finish_button);
+        confirmButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+            }
+        });
+
+        if (mSelectedBrushType != -1) {
+            RadioButton savedCheckedRadioButton = (RadioButton) mRadioGroupBrushType.getChildAt(mSelectedBrushType);
+            savedCheckedRadioButton.setChecked(true);
+        }
+
+        mRadioGroupBrushType.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                // checkedId is the RadioButton selected
+                switch (checkedId) {
+                    case R.id.radio_normal:
+                        mSelectedBrushType = 0;
+                        mPaintView.normal();
+                        break;
+                    case R.id.radio_blur:
+                        mSelectedBrushType = 1;
+                        mPaintView.blur();
+                        break;
+                    case R.id.radio_emboss:
+                        mSelectedBrushType = 2;
+                        mPaintView.emboss();
+                        break;
+
+                }
+            }
+        });
+
+        final Button colorPicker = (Button) dialog.findViewById(R.id.colorPicker);
+        colorPicker.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                ColorPickerDialogBuilder
+                        .with(MainActivity.this)
+                        .setTitle("Choose color")
+                        .initialColor(R.color.colorPrimary)
+                        .wheelType(ColorPickerView.WHEEL_TYPE.FLOWER)
+                        .density(12)
+                        .setOnColorSelectedListener(new OnColorSelectedListener() {
+                            @Override
+                            public void onColorSelected(int selectedColor) {
+
+                            }
+                        })
+                        .setPositiveButton("ok", new ColorPickerClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int selectedColor, Integer[] allColors) {
+                                mPaintView.setCurrentColor(selectedColor);
+                            }
+                        })
+                        .setNegativeButton("cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                            }
+                        })
+                        .build()
+                        .show();
+            }
+        });
+        dialog.show();
+    }
+
+    @Override
+    public boolean onTabSelected(int position, boolean wasSelected) {
+        if (position == 0){
+            LiveStoryFragment liveStoryFragment = new LiveStoryFragment();
+            getSupportFragmentManager().beginTransaction().replace(R.id.content_id,liveStoryFragment).commit();
+            return true;
+        }else  if (position == 1){
+            PaintFragment paintFragment = new PaintFragment();
+            getSupportFragmentManager().beginTransaction().replace(R.id.content_id,paintFragment).commit();
+            return true;
+        }else  if (position == 2){
+
+        }
+        return false;
+    }
+}

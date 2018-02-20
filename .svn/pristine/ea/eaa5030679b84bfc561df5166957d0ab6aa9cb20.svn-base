@@ -1,0 +1,354 @@
+package bryan.paintstory;
+
+import android.app.Activity;
+import android.app.Dialog;
+import android.app.ProgressDialog;
+import android.content.DialogInterface;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Environment;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.util.DisplayMetrics;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.SeekBar;
+import android.widget.Toast;
+
+import com.flask.colorpicker.ColorPickerView;
+import com.flask.colorpicker.OnColorSelectedListener;
+import com.flask.colorpicker.builder.ColorPickerClickListener;
+import com.flask.colorpicker.builder.ColorPickerDialogBuilder;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Calendar;
+
+/**
+ * Created by byamba on 5/5/17.
+ */
+
+public class PaintFragment extends Fragment {
+
+    private PaintView mPaintView;
+    private ArrayList<FingerPath> savedPaths = new ArrayList<>();
+    private ArrayList<FingerPath> savedUndonePaths = new ArrayList<>();
+    private StorageReference mStorage;
+    private ProgressDialog mProgress;
+    private FirebaseDatabase mDatabase;
+    private DatabaseReference storyReference;
+    private Calendar currentTime;
+    private RadioGroup mRadioGroupBrushType;
+    private SeekBar mSeekBarBrushSize;
+    private Dialog dialog;
+    private int mSelectedBrushType = -1;
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View rootView = inflater.inflate(R.layout.content_paint, container, false);
+        setHasOptionsMenu(true);
+
+        mStorage = FirebaseStorage.getInstance().getReference();
+        mProgress = new ProgressDialog(getContext());
+        mDatabase = FirebaseDatabase.getInstance();
+        storyReference = mDatabase.getReference("storiesWithDates");
+
+        mPaintView = (PaintView) rootView.findViewById(R.id.paintView);
+        DisplayMetrics metrics = new DisplayMetrics();
+        ((Activity) this.getActivity()).getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        mPaintView.init(metrics);
+        return rootView;
+    }
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+
+        if (savedInstanceState != null) {
+
+            //Restore the fragment's state here
+            mPaintView.paths = (ArrayList<FingerPath>) savedPaths.clone();
+            mPaintView.undonePaths = (ArrayList<FingerPath>) savedUndonePaths.clone();
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        //Save the fragment's state here
+        savedPaths = (ArrayList<FingerPath>) mPaintView.paths.clone();
+        savedUndonePaths = (ArrayList<FingerPath>) mPaintView.undonePaths.clone();
+
+    }
+
+    /**
+     * Inflates the new menu with items
+     *
+     * @param menu the menu to inflate
+     * @return true of succeeds, otherwise false
+     */
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        inflater.inflate(R.menu.main, menu);
+        super.onCreateOptionsMenu(menu, inflater);
+    }
+
+    /**
+     * Listens for menu item clicks and calls necessary functions
+     *
+     * @param item the clicked item
+     * @return true if succeeds, otherwise false
+     */
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.brushCustom:
+                openBrushMenu();
+                return true;
+            case R.id.clear:
+                mPaintView.clear();
+                return true;
+            case R.id.upload:
+                uploadImage();
+                return true;
+            case R.id.undo:
+                mPaintView.onClickUndo();
+                return true;
+            case R.id.redo:
+                mPaintView.onClickRedo();
+                return true;
+
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    public void saveImage() {
+        File file = new File(Environment.getExternalStorageDirectory().toString() + "/temp.png");
+
+        FileOutputStream ostream = null;
+        try {
+            ostream = new FileOutputStream(file);
+            System.out.println(ostream);
+            Bitmap well = mPaintView.getBitmap();
+            Bitmap save = Bitmap.createBitmap(320, 480, Bitmap.Config.ARGB_8888);
+            Paint paint = new Paint();
+            paint.setColor(Color.WHITE);
+            Canvas now = new Canvas(save);
+            now.drawRect(new Rect(0, 0, 320, 480), paint);
+            now.drawBitmap(well, new Rect(0, 0, well.getWidth(), well.getHeight()), new Rect(0, 0, 320, 480), null);
+
+            if (save == null) {
+                System.out.println("NULL bitmap save\n");
+            }
+            save.compress(Bitmap.CompressFormat.PNG, 100, ostream);
+
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+            Toast.makeText(this.getActivity(), "Null error", Toast.LENGTH_SHORT).show();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            Toast.makeText(this.getActivity(), "File error", Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(this.getActivity(), "IO error", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Uploads image to firebase
+     */
+    public void uploadImage() {
+        saveImage();
+
+        // Build a dialog from layout XML
+        final Dialog dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_upload);
+        dialog.setTitle("What is your title?");
+        final EditText uploadTitle = (EditText) dialog.findViewById(R.id.dialog_upload_editText);
+
+        final Button uploadButton = (Button) dialog.findViewById(R.id.dialog_upload_button);
+        uploadButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Grab the contents of the EditText.
+                final String postTitle = uploadTitle.getText().toString();
+
+                mProgress.setMessage("Uploading Paint ...");
+                mProgress.show();
+
+                Uri uri = Uri.fromFile(new File("/sdcard/temp.png"));
+                StorageReference filepath = mStorage.child("StoryPictures   ").child(postTitle);
+                filepath.putFile(uri).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                    @Override
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        mProgress.dismiss();
+                        currentTime = Calendar.getInstance();
+                        @SuppressWarnings("VisibleForTests") String downloadURL = taskSnapshot.getDownloadUrl().toString();
+                        StoryItem newStoryUpload = new StoryItem(postTitle, downloadURL, currentTime.getTimeInMillis());
+                        storyReference.push().setValue(newStoryUpload);
+                        Toast.makeText(getContext(), "Uploading finished!", Toast.LENGTH_LONG).show();
+                    }
+                }).addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        mProgress.dismiss();
+                        Toast.makeText(getContext(), "Uploading could not complete!", Toast.LENGTH_LONG).show();
+                    }
+                });
+                dialog.dismiss();
+            }
+        });
+        dialog.show();
+
+    }
+
+    /**
+     * Displays the brush menu
+     */
+    public void openBrushMenu() {
+
+        dialog = new Dialog(getContext());
+        dialog.setContentView(R.layout.dialog_brush);
+        dialog.setTitle("Customize your brush");
+
+        displayBrushSizePicker();
+        displayBrushPicker();
+        launchColorPicker();
+
+        final Button confirmButton = (Button) dialog.findViewById(R.id.button_finish_button);
+        confirmButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+            }
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * Displays a seekbar for selecting brush size
+     */
+    public void displayBrushSizePicker(){
+        //Changes brush size based on seek progress
+        mSeekBarBrushSize = (SeekBar) dialog.findViewById(R.id.seek_brush_size);
+        mSeekBarBrushSize.setProgress(mPaintView.getStrokeWidth());
+        mSeekBarBrushSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            int progressNumber = 0;
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                progressNumber = progress;
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                mPaintView.setStrokeWidth(progressNumber / 2);
+            }
+        });
+    }
+    
+    /**
+     * Displays the brush options
+     */
+    public void displayBrushPicker(){
+        mRadioGroupBrushType = (RadioGroup) dialog.findViewById(R.id.RadioGroupBrushType);
+
+        if (mSelectedBrushType != -1) {
+            RadioButton savedCheckedRadioButton = (RadioButton) mRadioGroupBrushType.getChildAt(mSelectedBrushType);
+            savedCheckedRadioButton.setChecked(true);
+        }
+
+
+        mRadioGroupBrushType.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(RadioGroup group, int checkedId) {
+                // checkedId is the RadioButton selected
+                switch (checkedId) {
+                    case R.id.radio_normal:
+                        mSelectedBrushType = 0;
+                        mPaintView.normal();
+                        break;
+                    case R.id.radio_blur:
+                        mSelectedBrushType = 1;
+                        mPaintView.blur();
+                        break;
+                    case R.id.radio_emboss:
+                        mSelectedBrushType = 2;
+                        mPaintView.emboss();
+                        break;
+
+                }
+            }
+        });
+    }
+
+    /**
+     * Displays color picker dialog
+     */
+    public void launchColorPicker(){
+        final Button colorPicker = (Button) dialog.findViewById(R.id.colorPicker);
+        colorPicker.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                ColorPickerDialogBuilder
+                        .with(getContext())
+                        .setTitle("Choose color")
+                        .initialColor(R.color.colorPrimary)
+                        .wheelType(ColorPickerView.WHEEL_TYPE.FLOWER)
+                        .density(12)
+                        .setOnColorSelectedListener(new OnColorSelectedListener() {
+                            @Override
+                            public void onColorSelected(int selectedColor) {
+
+                            }
+                        })
+                        .setPositiveButton("ok", new ColorPickerClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int selectedColor, Integer[] allColors) {
+                                mPaintView.setCurrentColor(selectedColor);
+                            }
+                        })
+                        .setNegativeButton("cancel", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                            }
+                        })
+                        .build()
+                        .show();
+            }
+        });
+    }
+}

@@ -1,0 +1,34 @@
+package bryan.paintstory;
+
+import android.content.Intent;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.util.DisplayMetrics;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+
+public class MainActivity extends AppCompatActivity {
+
+    private PaintView mPaintView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        mPaintView = (PaintView) findViewById(R.id.paintView);
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+
+    }
+
+    public void launchStory(View v){
+        Intent intent = new Intent(v.getContext(), LiveStory.class);
+        v.getContext().startActivity(intent);
+    }
+
+
+}

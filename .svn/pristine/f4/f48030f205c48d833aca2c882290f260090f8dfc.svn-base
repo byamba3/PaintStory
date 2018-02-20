@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">PaintStory</string>
+    <string name="title_activity_test">TestActivity</string>
+    <string name="title_home">Paint</string>
+    <string name="title_dashboard">Story</string>
+    <string name="title_notifications">Settings</string>
+    <string name="color_selection">Color picker</string>
+</resources>
